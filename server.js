@@ -1,57 +1,71 @@
-const express = require('express'); 
-const { v4: uuidv4 } = require('uuid'); // For generating unique short codes
+const express = require('express');
+const mongoose = require('mongoose');
+const dotenv = require('dotenv');
+const Url = require('./models/Url');
+const validUrl = require('valid-url');
+const cors = require('cors');
+
+dotenv.config();
+
 const app = express();
-const port = 3000; // Or any port you choose
+app.use(express.json());
+app.use(cors()); // Enable CORS
 
-// In-memory storage for short URLs (replace with a database in a real application)
-const urlMap = {};
-const analytics = {};
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+})
+.then(() => console.log('MongoDB connected'))
+.catch(err => console.log(err));
 
-app.use(express.json()); // Enable JSON body parsing
-
-// ✅ Root Route (Fix for "Cannot GET /" error)
+// Default route
 app.get('/', (req, res) => {
-    res.send('Welcome to Shortify URL Shortener API! Use POST /shorten to create short URLs.');
+    res.send('Welcome to the URL Shortener API');
 });
 
-// ✅ POST /shorten endpoint
-app.post('/shorten', (req, res) => {
-    const longUrl = req.body.longUrl;
+// Shorten URL endpoint
+app.post('/shorten', async (req, res, next) => {
+    try {
+        const { originalUrl } = req.body;
+        
+        // ✅ Check if the URL is valid
+        if (!originalUrl || !validUrl.isUri(originalUrl)) {
+            return res.status(400).json({ error: 'Invalid URL format' });
+        }
 
-    if (!longUrl) {
-        return res.status(400).json({ error: 'Long URL is required' });
+        const shortCode = Math.random().toString(36).substring(2, 8);
+        const newUrl = new Url({ shortCode, originalUrl });
+
+        await newUrl.save();
+        res.json({ shortUrl: `http://localhost:3000/r/${shortCode}` });
+    } catch (err) {
+        next(err);
     }
-
-    // Generate a unique short code (UUID is a good option for uniqueness)
-    const shortCode = uuidv4().substring(0, 6); // Take the first 6 characters
-
-    // Store the mapping (replace with database interaction in a real application)
-    urlMap[shortCode] = longUrl;
-    analytics[shortCode] = { clicks: 0 };
-
-    const shortUrl = `http://localhost:${port}/r/${shortCode}`; // Or your domain
-    res.json({ shortUrl });
 });
 
-// ✅ GET /r/:code endpoint
-app.get('/r/:code', (req, res) => {
-    const shortCode = req.params.code;
-    const longUrl = urlMap[shortCode];
+// Redirect from short URL
+app.get('/r/:code', async (req, res, next) => {
+    try {
+        const { code } = req.params;
+        const urlEntry = await Url.findOne({ shortCode: code });
 
-    if (!longUrl) {
-        return res.status(404).send('Short URL not found');
+        if (!urlEntry) return res.status(404).json({ error: 'Short URL not found' });
+
+        urlEntry.clickCount += 1;
+        await urlEntry.save();
+
+        res.redirect(urlEntry.originalUrl);
+    } catch (err) {
+        next(err);
     }
-
-    // Record analytics
-    analytics[shortCode].clicks++;
-    analytics[shortCode].lastAccess = new Date();
-    analytics[shortCode].userAgent = req.headers['user-agent'];
-
-    // Redirect to the long URL
-    res.redirect(longUrl);
 });
 
-// ✅ Start the server
-app.listen(port, () => {
-    console.log(`Server listening on port ${port}`);
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({ error: 'Something went wrong!' });
 });
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
