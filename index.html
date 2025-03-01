@@ -90,37 +90,33 @@
     <div class="container">
         <h1>URL Shortener</h1>
         <form id="urlForm">
-            <label for="longUrl">Enter Long URL:</label>
-            <input type="url" id="longUrl" name="longUrl" placeholder="https://www.example.com" required>
+            <label for="originalUrl">Enter URL:</label>
+            <input type="text" id="originalUrl" name="originalUrl" required>
             <button type="submit">Shorten</button>
         </form>
-        <div id="shortUrl"></div>
+        <p id="shortUrl"></p>
     </div>
 
     <script>
-        document.getElementById('urlForm').addEventListener('submit', function(event) {
-            event.preventDefault(); // Prevent page reload
+        const backendUrl = 'https://shortify-project.onrender.com'; // Replace with your Render-deployed backend URL
 
-            const longUrl = document.getElementById('longUrl').value;
-
-            // Here you would typically send 'longUrl' to your server to generate a short URL
-            // For this example, we'll simulate it:
-            const shortUrl = generateShortUrl(longUrl); 
-
-            // Display the short URL
-            document.getElementById('shortUrl').textContent = shortUrl;
-        });
-
-        function generateShortUrl(longUrl) {
-            // This is a simplified example. 
-            // In a real app, you'd use a unique algorithm and database.
-            const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-            let shortCode = '';
-            for (let i = 0; i < 7; i++) {
-                shortCode += characters.charAt(Math.floor(Math.random() * characters.length));
+        document.getElementById('urlForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const originalUrl = document.getElementById('originalUrl').value;
+            const response = await fetch(`${backendUrl}/shorten`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ originalUrl })
+            });
+            const data = await response.json();
+            if (data.shortUrl) {
+                document.getElementById('shortUrl').textContent = `Short URL: ${data.shortUrl}`;
+            } else {
+                document.getElementById('shortUrl').textContent = `Error: ${data.error}`;
             }
-            return `https://short.url/${shortCode}`;
-        }
+        });
     </script>
 </body>
 </html>

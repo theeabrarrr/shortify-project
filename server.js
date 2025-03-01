@@ -38,7 +38,7 @@ app.post('/shorten', async (req, res, next) => {
         const newUrl = new Url({ shortCode, originalUrl });
 
         await newUrl.save();
-        res.json({ shortUrl: `http://localhost:3000/r/${shortCode}` });
+        res.json({ shortUrl: `${req.protocol}://${req.get('host')}/r/${shortCode}` });
     } catch (err) {
         next(err);
     }
